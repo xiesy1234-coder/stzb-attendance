@@ -81,10 +81,40 @@ tbody tr:hover{background:rgba(59,130,246,.06)}
   padding:11px 18px;border-radius:12px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.45);
   z-index:99;
 }
+/* ---------- 查询界面 ---------- */
+.badge{
+  font-size:12px;color:var(--warn);border:1px solid rgba(245,158,11,.45);
+  background:rgba(245,158,11,.08);padding:6px 12px;border-radius:999px;white-space:nowrap;
+}
+.panel.query{max-width:760px;margin:10px auto 22px;text-align:left}
+.panel.query h2{font-size:18px;margin:0 0 6px}
+.query-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px;align-items:end}
+.query-form .field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.query-form label{font-size:12.5px;color:var(--muted)}
+.query-form input{padding:11px 12px;font-size:14px;width:100%}
+.query-form .submit{grid-column:1 / -1;padding:12px;font-size:15px;font-weight:600;letter-spacing:2px}
+.notice{
+  margin:16px 0 0;font-size:12.5px;color:var(--warn);background:rgba(245,158,11,.08);
+  border:1px solid rgba(245,158,11,.28);border-radius:10px;padding:10px 12px;line-height:1.6;
+}
+#queryError{color:var(--bad);font-size:13px;margin:10px 0 0}
+.result-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:6px 0 16px}
+.result-head h2{font-size:18px;margin:0}
+.result-head .muted{margin:4px 0 0}
+.self-tag{
+  display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:11px;
+  color:#fff;background:linear-gradient(135deg,#3b82f6,#a78bfa);vertical-align:1px;
+}
+tbody tr.is-self{background:rgba(59,130,246,.14)}
+tbody tr.is-self:hover{background:rgba(59,130,246,.2)}
+@media (max-width:720px){
+  .query-form{grid-template-columns:1fr}
+}
 @media (max-width:640px){
   .topbar{padding:14px}
   .actions .btn{padding:8px 10px;font-size:12px}
   .card .v{font-size:20px}
   main{padding:14px 10px 32px}
   th,td{padding:9px 10px}
+  .result-head{align-items:flex-start}
 }

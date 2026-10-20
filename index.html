@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>率土之滨 · 同盟考勤</title>
+<title>率土之滨 · 同盟考勤查询</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,76 +11,110 @@
   <div class="brand">
     <div class="logo">率</div>
     <div>
-      <h1>同盟考勤</h1>
-      <p class="sub">率土之滨 · 攻城考勤 / 周武勋统计 <span id="metaLine"></span></p>
+      <h1>同盟考勤查询</h1>
+      <p class="sub">输入区服 · 同盟 · 个人 ID，查询同盟考勤数据</p>
     </div>
   </div>
   <div class="actions">
-    <label class="btn ghost" for="importFile">导入数据</label>
-    <input id="importFile" type="file" accept=".json,.csv,.txt" hidden>
-    <button class="btn ghost" id="exportJson">导出 JSON</button>
-    <button class="btn primary" id="exportCsv">导出 CSV</button>
+    <span class="badge" id="modeBadge">演示数据</span>
   </div>
 </header>
 
 <main>
-  <section class="cards" id="summaryCards"></section>
+  <!-- 查询面板 -->
+  <section class="panel query" id="queryPanel">
+    <h2>开始查询</h2>
+    <p class="muted">填写下面三项，点击查询。</p>
+    <form id="queryForm" class="query-form">
+      <div class="field">
+        <label for="server">区服（区号）</label>
+        <input id="server" name="server" type="text" inputmode="numeric" placeholder="例如 1245" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <label for="alliance">同盟（名称或 ID）</label>
+        <input id="alliance" name="alliance" type="text" placeholder="例如 洛阳" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <label for="playerId">个人 ID（选填）</label>
+        <input id="playerId" name="playerId" type="text" placeholder="填写后高亮你自己" autocomplete="off">
+      </div>
+      <button class="btn primary submit" type="submit">查 询</button>
+    </form>
+    <p class="notice" id="notice">⚠️ 当前为演示模式：数据为模拟生成，用于展示界面与交互；接入数据源后即为真实考勤。</p>
+    <p class="hint" id="queryError" hidden></p>
+  </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>成员考勤</h2>
-      <div class="filters">
-        <input id="search" type="search" placeholder="搜索成员 / 分组…">
-        <select id="groupFilter"><option value="">全部分组</option></select>
-        <div class="thresholds" title="考核标准，可修改">
-          <span>标准：主力≥</span><input id="thMain" type="number" min="0" value="2">
-          <span>拆迁≥</span><input id="thSiege" type="number" min="0" value="1">
-          <span>攻城≥</span><input id="thAttack" type="number" min="0" value="3">
-        </div>
+  <!-- 结果面板 -->
+  <section id="resultPanel" hidden>
+    <div class="result-head">
+      <div>
+        <h2 id="resultTitle">查询结果</h2>
+        <p class="muted" id="resultMeta"></p>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" id="again">重新查询</button>
+        <button class="btn primary" id="exportCsv">导出 CSV</button>
       </div>
     </div>
-    <div class="table-wrap">
-      <table class="data" id="memberTable">
-        <thead>
-          <tr>
-            <th data-key="name">成员</th>
-            <th data-key="group">分组</th>
-            <th data-key="mainTeams" class="num">主力队伍</th>
-            <th data-key="siegeTeams" class="num">拆迁队伍</th>
-            <th data-key="attackCount" class="num">攻城次数</th>
-            <th data-key="weeklyMerit" class="num">周武勋</th>
-            <th data-key="status">考核</th>
-          </tr>
-        </thead>
-        <tbody id="memberBody"></tbody>
-      </table>
-    </div>
-    <p class="hint" id="emptyHint" hidden>没有匹配的成员，换个关键词或分组试试。</p>
-  </section>
 
-  <section class="panel">
-    <div class="panel-head"><h2>分组周武勋</h2><span class="muted" id="groupCount"></span></div>
-    <div class="table-wrap">
-      <table class="data" id="groupTable">
-        <thead>
-          <tr>
-            <th>分组</th>
-            <th class="num">人数</th>
-            <th class="num">周武勋合计</th>
-            <th class="num">人均武勋</th>
-            <th class="num">达标人数</th>
-            <th class="num">达标率</th>
-          </tr>
-        </thead>
-        <tbody id="groupBody"></tbody>
-      </table>
-    </div>
-  </section>
+    <section class="cards" id="summaryCards"></section>
 
-  <footer class="foot">
-    <span>数据仅用于展示，抓包采集在电脑端完成；本页可离线使用。</span>
-    <span id="updatedAt" class="muted"></span>
-  </footer>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>成员考勤</h2>
+        <div class="filters">
+          <input id="search" type="search" placeholder="搜索成员 / 分组…">
+          <select id="groupFilter"><option value="">全部分组</option></select>
+          <div class="thresholds" title="考核标准，可修改">
+            <span>标准：主力≥</span><input id="thMain" type="number" min="0" value="2">
+            <span>拆迁≥</span><input id="thSiege" type="number" min="0" value="1">
+            <span>攻城≥</span><input id="thAttack" type="number" min="0" value="3">
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data" id="memberTable">
+          <thead>
+            <tr>
+              <th data-key="name">成员</th>
+              <th data-key="group">分组</th>
+              <th data-key="mainTeams" class="num">主力队伍</th>
+              <th data-key="siegeTeams" class="num">拆迁队伍</th>
+              <th data-key="attackCount" class="num">攻城次数</th>
+              <th data-key="weeklyMerit" class="num">周武勋</th>
+              <th data-key="status">考核</th>
+            </tr>
+          </thead>
+          <tbody id="memberBody"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="emptyHint" hidden>没有匹配的成员。</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>分组周武勋</h2><span class="muted" id="groupCount"></span></div>
+      <div class="table-wrap">
+        <table class="data" id="groupTable">
+          <thead>
+            <tr>
+              <th>分组</th>
+              <th class="num">人数</th>
+              <th class="num">周武勋合计</th>
+              <th class="num">人均武勋</th>
+              <th class="num">达标人数</th>
+              <th class="num">达标率</th>
+            </tr>
+          </thead>
+          <tbody id="groupBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <span id="footNote">数据为模拟演示 · 抓包采集在电脑端完成</span>
+      <span id="updatedAt" class="muted"></span>
+    </footer>
+  </section>
 </main>
 
 <div id="toast" class="toast" hidden></div>

@@ -1,35 +1,20 @@
-/* 率土之滨 · 同盟考勤（网页版 · 纯展示）
- * 数据来源：导入 JSON / CSV，或使用内置示例数据。
- * 所有数据保存在浏览器 localStorage，不上传任何服务器。
+/* 率土之滨 · 同盟考勤查询（网页版）
+ * 查询式界面：输入 区服 / 同盟 / 个人ID → 生成并展示考勤数据。
+ * 当前为「演示模式」：数据由输入确定性地模拟生成，用于展示交互；
+ * 接入真实数据源后，只需把 generateMock 换成后端 API 请求即可。
  */
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'stzb.attendance.v1';
+  const $ = (s) => document.querySelector(s);
+  const fmt = (n) => Number(n || 0).toLocaleString('zh-CN');
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  // ---------- 示例数据 ----------
-  function sampleData() {
-    const groups = ['一组', '二组', '三组', '四组'];
-    const names = [
-      '折戟沉沙', '孤城旧梦', '铁骑三千', '北府兵', '青州浪客',
-      '一剑霜寒', '定军山', '横扫千军', '风起陇西', '洛水之滨',
-      '虎啸龙吟', '白马义从', '西凉铁骑', '江东子弟', '并州狼骑',
-      '长歌当行', '破阵子', '战八方', '临江仙', '望北楼'
-    ];
-    const members = names.map((name, i) => ({
-      name,
-      group: groups[i % groups.length],
-      mainTeams: 1 + ((i * 7 + 3) % 4),          // 主力队伍 1-4
-      siegeTeams: (i * 3) % 4,                     // 拆迁队伍 0-3
-      attackCount: (i * 5 + 2) % 16,               // 攻城次数 0-15
-      weeklyMerit: 3000 + ((i * 2311) % 18000)     // 周武勋
-    }));
-    return { alliance: '示例同盟 · 洛阳', season: 'S1 赛季第 3 周', members };
-  }
-
-  // ---------- 状态 ----------
   const state = {
     data: null,
+    server: '',
+    alliance: '',
+    playerId: '',
     search: '',
     group: '',
     sortKey: 'weeklyMerit',
@@ -37,39 +22,54 @@
     thresholds: { main: 2, siege: 1, attack: 3 }
   };
 
-  const $ = (sel) => document.querySelector(sel);
-  const fmt = (n) => Number(n || 0).toLocaleString('zh-CN');
-
-  // ---------- 存取 ----------
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.members)) return normalize(parsed);
-      }
-    } catch (e) { console.warn('读取本地数据失败', e); }
-    return normalize(sampleData());
+  // ---------- 确定性随机（同一输入永远同一结果，便于演示） ----------
+  function hashStr(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
   }
-
-  function normalize(d) {
-    return {
-      alliance: d.alliance || '未命名同盟',
-      season: d.season || '',
-      members: (d.members || []).map((m) => ({
-        name: String(m.name ?? m.成员 ?? '').trim() || '未命名',
-        group: String(m.group ?? m.分组 ?? '未分组').trim() || '未分组',
-        mainTeams: num(m.mainTeams ?? m.main_teams ?? m.主力队伍 ?? m.主力),
-        siegeTeams: num(m.siegeTeams ?? m.siege_teams ?? m.拆迁队伍 ?? m.拆迁),
-        attackCount: num(m.attackCount ?? m.attack_count ?? m.攻城次数 ?? m.攻城),
-        weeklyMerit: num(m.weeklyMerit ?? m.weekly_merit ?? m.周武勋 ?? m.武勋)
-      }))
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  function num(v) { const n = Number(String(v ?? '').replace(/[^\d.-]/g, '')); return isFinite(n) ? n : 0; }
 
-  function save() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); } catch (e) { /* 忽略 */ }
+  const NAME_POOL = [
+    '折戟沉沙', '孤城旧梦', '铁骑三千', '北府兵', '青州浪客', '一剑霜寒', '定军山', '横扫千军',
+    '风起陇西', '洛水之滨', '虎啸龙吟', '白马义从', '西凉铁骑', '江东子弟', '并州狼骑', '长歌当行',
+    '破阵子', '战八方', '临江仙', '望北楼', '踏雪寻梅', '夜泊秦淮', '射天狼', '渡江云',
+    '扬州慢', '满江红', '念奴娇', '青玉案', '水龙吟', '蝶恋花', '贺新郎', '沁园春',
+    '燕归梁', '忆江南', '长相思', '如梦令', '醉花阴', '雨霖铃', '渔家傲', '桂枝香'
+  ];
+  const GROUPS = ['一组', '二组', '三组', '四组'];
+
+  function generateMock(server, alliance, playerId) {
+    const seed = hashStr(`${server}|${alliance}|${playerId}`);
+    const rnd = mulberry32(seed);
+    const count = 12 + Math.floor(rnd() * 19); // 12~30 人
+    const names = NAME_POOL.slice().sort(() => rnd() - 0.5);
+    const members = [];
+    for (let i = 0; i < count; i++) {
+      const name = names[i % names.length] + (i >= names.length ? String(Math.floor(i / names.length) + 1) : '');
+      members.push({
+        name,
+        group: GROUPS[Math.floor(rnd() * GROUPS.length)],
+        mainTeams: Math.floor(rnd() * 5),        // 0-4
+        siegeTeams: Math.floor(rnd() * 4),       // 0-3
+        attackCount: Math.floor(rnd() * 19),     // 0-18
+        weeklyMerit: 2000 + Math.floor(rnd() * 19000)
+      });
+    }
+    // 个人 ID：高亮对应成员（演示里用 ID 数字映射到一位成员）
+    let selfIndex = null;
+    if (playerId && /^\d+$/.test(playerId)) {
+      selfIndex = Number(playerId) % members.length;
+      members[selfIndex].isSelf = true;
+    }
+    return { alliance, server, members, selfIndex, generatedAt: Date.now() };
   }
 
   // ---------- 计算 ----------
@@ -90,17 +90,14 @@
     });
     const dir = state.sortDir === 'asc' ? 1 : -1;
     const key = state.sortKey;
-    list = list.slice().sort((a, b) => {
+    return list.slice().sort((a, b) => {
       if (key === 'status') {
         const rank = { ok: 2, mid: 1, bad: 0 };
         return (rank[statusOf(a).key] - rank[statusOf(b).key]) * dir;
       }
-      if (key === 'name' || key === 'group') {
-        return String(a[key]).localeCompare(String(b[key]), 'zh-CN') * dir;
-      }
+      if (key === 'name' || key === 'group') return String(a[key]).localeCompare(String(b[key]), 'zh-CN') * dir;
       return ((a[key] || 0) - (b[key] || 0)) * dir;
     });
-    return list;
   }
 
   function groupStats() {
@@ -108,8 +105,7 @@
     for (const m of state.data.members) {
       if (!map.has(m.group)) map.set(m.group, { group: m.group, count: 0, merit: 0, pass: 0 });
       const g = map.get(m.group);
-      g.count++;
-      g.merit += m.weeklyMerit;
+      g.count++; g.merit += m.weeklyMerit;
       if (statusOf(m).key === 'ok') g.pass++;
     }
     return [...map.values()].sort((a, b) => b.merit - a.merit);
@@ -120,21 +116,20 @@
     const sum = (k) => ms.reduce((s, m) => s + (m[k] || 0), 0);
     const pass = ms.filter((m) => statusOf(m).key === 'ok').length;
     return {
-      count: ms.length,
-      main: sum('mainTeams'),
-      siege: sum('siegeTeams'),
-      attack: sum('attackCount'),
-      merit: sum('weeklyMerit'),
-      pass,
-      passRate: ms.length ? Math.round((pass / ms.length) * 100) : 0
+      count: ms.length, main: sum('mainTeams'), siege: sum('siegeTeams'),
+      attack: sum('attackCount'), merit: sum('weeklyMerit'),
+      pass, passRate: ms.length ? Math.round((pass / ms.length) * 100) : 0
     };
   }
 
   // ---------- 渲染 ----------
-  function renderMeta() {
+  function renderResultHeader() {
     const d = state.data;
-    $('#metaLine').textContent = `· ${d.alliance}${d.season ? ' · ' + d.season : ''}`;
-    $('#updatedAt').textContent = '本地数据 · 更新于 ' + new Date().toLocaleString('zh-CN');
+    $('#resultTitle').textContent = `${d.alliance} · 同盟考勤`;
+    const self = d.members.find((m) => m.isSelf);
+    $('#resultMeta').textContent =
+      `区服 ${d.server} · 同盟 ${d.alliance} · 共 ${d.members.length} 名成员` +
+      (self ? ` · 已定位：${self.name}` : (state.playerId ? ` · 个人 ID ${state.playerId}（未匹配到成员）` : ''));
   }
 
   function renderCards() {
@@ -147,15 +142,12 @@
       { k: '周武勋合计', v: fmt(t.merit), cls: 'ok' },
       { k: '考核达标', v: fmt(t.pass) + `<small>${t.passRate}%</small>`, cls: t.passRate >= 60 ? 'ok' : 'warn' }
     ];
-    $('#summaryCards').innerHTML = cards.map((c) =>
-      `<div class="card ${c.cls}"><div class="k">${c.k}</div><div class="v">${c.v}</div></div>`
-    ).join('');
+    $('#summaryCards').innerHTML = cards.map((c) => `<div class="card ${c.cls}"><div class="k">${c.k}</div><div class="v">${c.v}</div></div>`).join('');
   }
 
   function renderGroupFilter() {
     const groups = [...new Set(state.data.members.map((m) => m.group))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
-    const sel = $('#groupFilter');
-    sel.innerHTML = '<option value="">全部分组</option>' +
+    $('#groupFilter').innerHTML = '<option value="">全部分组</option>' +
       groups.map((g) => `<option${g === state.group ? ' selected' : ''}>${esc(g)}</option>`).join('');
   }
 
@@ -164,8 +156,9 @@
     $('#emptyHint').hidden = list.length > 0;
     $('#memberBody').innerHTML = list.map((m) => {
       const st = statusOf(m);
-      return `<tr>
-        <td>${esc(m.name)}</td>
+      const selfTag = m.isSelf ? ' <span class="self-tag">你</span>' : '';
+      return `<tr class="${m.isSelf ? 'is-self' : ''}">
+        <td>${esc(m.name)}${selfTag}</td>
         <td class="muted">${esc(m.group)}</td>
         <td class="num">${m.mainTeams}</td>
         <td class="num">${m.siegeTeams}</td>
@@ -175,11 +168,9 @@
       </tr>`;
     }).join('');
 
-    // 表头排序指示
     document.querySelectorAll('#memberTable th').forEach((th) => {
       const key = th.dataset.key;
       if (!key) return;
-      th.style.color = key === state.sortKey ? 'var(--text)' : '';
       th.textContent = th.textContent.replace(/[ ▲▼]+$/, '') + (key === state.sortKey ? (state.sortDir === 'asc' ? ' ▲' : ' ▼') : '');
     });
   }
@@ -191,9 +182,7 @@
     $('#groupBody').innerHTML = stats.map((g) => {
       const rate = g.count ? Math.round((g.pass / g.count) * 100) : 0;
       return `<tr>
-        <td>${esc(g.group)}
-          <div class="bar"><i style="width:${(g.merit / max) * 100}%"></i></div>
-        </td>
+        <td>${esc(g.group)}<div class="bar"><i style="width:${(g.merit / max) * 100}%"></i></div></td>
         <td class="num">${g.count}</td>
         <td class="num">${fmt(g.merit)}</td>
         <td class="num">${fmt(Math.round(g.merit / g.count))}</td>
@@ -204,85 +193,37 @@
   }
 
   function renderAll() {
-    renderMeta();
+    renderResultHeader();
     renderCards();
     renderGroupFilter();
     renderMembers();
     renderGroups();
+    $('#updatedAt').textContent = '查询于 ' + new Date().toLocaleString('zh-CN');
   }
 
-  function esc(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // ---------- 查询 ----------
+  function runQuery(server, alliance, playerId) {
+    state.server = server; state.alliance = alliance; state.playerId = playerId;
+    state.data = generateMock(server, alliance, playerId);
+    state.search = ''; state.group = '';
+    $('#search').value = ''; $('#groupFilter').value = '';
+    $('#queryPanel').hidden = true;
+    $('#resultPanel').hidden = false;
+    renderAll();
+    try {
+      localStorage.setItem('stzb.lastQuery', JSON.stringify({ server, alliance, playerId }));
+    } catch (e) { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // ---------- 导入 ----------
-  function parseCsv(text) {
-    const rows = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((r) => r.trim());
-    if (!rows.length) throw new Error('CSV 是空的');
-    const sep = rows[0].includes('\t') ? '\t' : ',';
-    const header = rows[0].split(sep).map((h) => h.trim().toLowerCase());
-    const members = rows.slice(1).map((line) => {
-      const cells = splitCsvLine(line, sep);
-      const obj = {};
-      header.forEach((h, i) => { obj[h] = (cells[i] || '').trim(); });
-      return {
-        name: obj['成员'] || obj['name'] || obj['姓名'],
-        group: obj['分组'] || obj['group'] || '未分组',
-        mainTeams: obj['主力队伍'] || obj['主力'] || obj['mainteams'] || 0,
-        siegeTeams: obj['拆迁队伍'] || obj['拆迁'] || obj['siegeteams'] || 0,
-        attackCount: obj['攻城次数'] || obj['攻城'] || obj['attackcount'] || 0,
-        weeklyMerit: obj['周武勋'] || obj['武勋'] || obj['weeklymerit'] || 0
-      };
-    });
-    return { alliance: '导入数据', season: '', members };
+  function backToQuery() {
+    $('#resultPanel').hidden = true;
+    $('#queryPanel').hidden = false;
+    $('#server').focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function splitCsvLine(line, sep) {
-    if (sep === '\t') return line.split('\t');
-    const out = []; let cur = ''; let quoted = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (quoted && line[i + 1] === '"') { cur += '"'; i++; }
-        else quoted = !quoted;
-      } else if (ch === ',' && !quoted) { out.push(cur); cur = ''; }
-      else cur += ch;
-    }
-    out.push(cur);
-    return out;
-  }
-
-  function importFile(file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const text = String(reader.result || '');
-        const isJson = /\.json$/i.test(file.name) || text.trim().startsWith('{') || text.trim().startsWith('[');
-        let data;
-        if (isJson) {
-          const parsed = JSON.parse(text);
-          data = Array.isArray(parsed) ? { members: parsed } : parsed;
-        } else {
-          data = parseCsv(text);
-        }
-        const normalized = normalize(data);
-        if (!normalized.members.length) throw new Error('没有解析到成员数据');
-        state.data = normalized;
-        save();
-        renderAll();
-        toast(`导入成功：${normalized.members.length} 名成员`);
-      } catch (e) {
-        toast('导入失败：' + e.message);
-      }
-    };
-    reader.readAsText(file, 'utf-8');
-  }
-
-  function exportJson() {
-    download(JSON.stringify(state.data, null, 2), 'stzb-attendance.json', 'application/json');
-    toast('已导出 JSON');
-  }
-
+  // ---------- 导出 ----------
   function exportCsv() {
     const header = ['成员', '分组', '主力队伍', '拆迁队伍', '攻城次数', '周武勋'];
     const lines = [header.join(',')];
@@ -290,51 +231,49 @@
       lines.push([m.name, m.group, m.mainTeams, m.siegeTeams, m.attackCount, m.weeklyMerit]
         .map((v) => (String(v).includes(',') ? `"${String(v).replace(/"/g, '""')}"` : v)).join(','));
     }
-    download('\uFEFF' + lines.join('\r\n'), 'stzb-attendance.csv', 'text/csv');
-    toast('已导出 CSV（可用 Excel 打开）');
-  }
-
-  function download(content, filename, type) {
-    const blob = new Blob([content], { type: type + ';charset=utf-8' });
+    const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = filename;
+    a.download = `考勤_${state.server}_${state.alliance}.csv`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast('已导出 CSV');
   }
 
   // ---------- 提示 ----------
   let toastTimer = null;
   function toast(msg) {
     const el = $('#toast');
-    el.textContent = msg;
-    el.hidden = false;
+    el.textContent = msg; el.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+    toastTimer = setTimeout(() => { el.hidden = true; }, 2400);
   }
 
   // ---------- 事件 ----------
   function bind() {
-    $('#importFile').addEventListener('change', (e) => {
-      const f = e.target.files && e.target.files[0];
-      if (f) importFile(f);
-      e.target.value = '';
+    $('#queryForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const server = $('#server').value.trim();
+      const alliance = $('#alliance').value.trim();
+      const playerId = $('#playerId').value.trim();
+      const err = $('#queryError');
+      if (!/^\d{1,6}$/.test(server)) { err.textContent = '区服请填写数字，例如 1245'; err.hidden = false; return; }
+      if (!alliance) { err.textContent = '请填写同盟名称或 ID'; err.hidden = false; return; }
+      err.hidden = true;
+      runQuery(server, alliance, playerId);
     });
-    $('#exportJson').addEventListener('click', exportJson);
+
+    $('#again').addEventListener('click', backToQuery);
     $('#exportCsv').addEventListener('click', exportCsv);
 
     $('#search').addEventListener('input', (e) => { state.search = e.target.value; renderMembers(); });
     $('#groupFilter').addEventListener('change', (e) => { state.group = e.target.value; renderMembers(); });
 
-    const bindTh = (id, key) => {
-      $(id).addEventListener('change', (e) => {
-        state.thresholds[key] = Math.max(0, Number(e.target.value) || 0);
-        renderCards(); renderMembers(); renderGroups();
-      });
-    };
-    bindTh('#thMain', 'main');
-    bindTh('#thSiege', 'siege');
-    bindTh('#thAttack', 'attack');
+    const bindTh = (id, key) => $(id).addEventListener('change', (e) => {
+      state.thresholds[key] = Math.max(0, Number(e.target.value) || 0);
+      renderCards(); renderMembers(); renderGroups();
+    });
+    bindTh('#thMain', 'main'); bindTh('#thSiege', 'siege'); bindTh('#thAttack', 'attack');
 
     document.querySelectorAll('#memberTable th[data-key]').forEach((th) => {
       th.addEventListener('click', () => {
@@ -344,18 +283,28 @@
         renderMembers();
       });
     });
-
-    // 拖拽导入
-    document.addEventListener('dragover', (e) => { e.preventDefault(); });
-    document.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) importFile(f);
-    });
   }
 
   // ---------- 启动 ----------
-  state.data = load();
   bind();
-  renderAll();
+  // 回填上次查询（不自动执行，避免误导）
+  try {
+    const last = JSON.parse(localStorage.getItem('stzb.lastQuery') || 'null');
+    if (last) {
+      $('#server').value = last.server || '';
+      $('#alliance').value = last.alliance || '';
+      $('#playerId').value = last.playerId || '';
+    }
+  } catch (e) { /* ignore */ }
+
+  // 支持分享链接直接带参数查询：?server=1245&alliance=洛阳&playerId=12345
+  const params = new URLSearchParams(location.search);
+  const qServer = params.get('server');
+  const qAlliance = params.get('alliance');
+  if (qServer && qAlliance) {
+    $('#server').value = qServer;
+    $('#alliance').value = qAlliance;
+    $('#playerId').value = params.get('playerId') || '';
+    runQuery(qServer, qAlliance, params.get('playerId') || '');
+  }
 })();
