@@ -1,0 +1,26 @@
+{
+  "alliance": "示例同盟 · 洛阳",
+  "season": "S1 赛季第 3 周",
+  "members": [
+    { "name": "折戟沉沙", "group": "一组", "mainTeams": 4, "siegeTeams": 2, "attackCount": 14, "weeklyMerit": 19200 },
+    { "name": "孤城旧梦", "group": "二组", "mainTeams": 3, "siegeTeams": 1, "attackCount": 9, "weeklyMerit": 15800 },
+    { "name": "铁骑三千", "group": "三组", "mainTeams": 2, "siegeTeams": 3, "attackCount": 12, "weeklyMerit": 17400 },
+    { "name": "北府兵", "group": "四组", "mainTeams": 1, "siegeTeams": 0, "attackCount": 2, "weeklyMerit": 4300 },
+    { "name": "青州浪客", "group": "一组", "mainTeams": 3, "siegeTeams": 2, "attackCount": 11, "weeklyMerit": 16500 },
+    { "name": "一剑霜寒", "group": "二组", "mainTeams": 2, "siegeTeams": 1, "attackCount": 7, "weeklyMerit": 12800 },
+    { "name": "定军山", "group": "三组", "mainTeams": 4, "siegeTeams": 1, "attackCount": 15, "weeklyMerit": 20100 },
+    { "name": "横扫千军", "group": "四组", "mainTeams": 2, "siegeTeams": 0, "attackCount": 4, "weeklyMerit": 8600 },
+    { "name": "风起陇西", "group": "一组", "mainTeams": 3, "siegeTeams": 3, "attackCount": 13, "weeklyMerit": 18300 },
+    { "name": "洛水之滨", "group": "二组", "mainTeams": 1, "siegeTeams": 1, "attackCount": 5, "weeklyMerit": 9400 },
+    { "name": "虎啸龙吟", "group": "三组", "mainTeams": 2, "siegeTeams": 2, "attackCount": 10, "weeklyMerit": 14700 },
+    { "name": "白马义从", "group": "四组", "mainTeams": 3, "siegeTeams": 1, "attackCount": 8, "weeklyMerit": 12100 },
+    { "name": "西凉铁骑", "group": "一组", "mainTeams": 2, "siegeTeams": 2, "attackCount": 6, "weeklyMerit": 11200 },
+    { "name": "江东子弟", "group": "二组", "mainTeams": 4, "siegeTeams": 2, "attackCount": 13, "weeklyMerit": 18900 },
+    { "name": "并州狼骑", "group": "三组", "mainTeams": 1, "siegeTeams": 3, "attackCount": 9, "weeklyMerit": 13600 },
+    { "name": "长歌当行", "group": "四组", "mainTeams": 2, "siegeTeams": 1, "attackCount": 3, "weeklyMerit": 7100 },
+    { "name": "破阵子", "group": "一组", "mainTeams": 3, "siegeTeams": 0, "attackCount": 7, "weeklyMerit": 10500 },
+    { "name": "战八方", "group": "二组", "mainTeams": 2, "siegeTeams": 2, "attackCount": 11, "weeklyMerit": 15200 },
+    { "name": "临江仙", "group": "三组", "mainTeams": 4, "siegeTeams": 1, "attackCount": 14, "weeklyMerit": 19700 },
+    { "name": "望北楼", "group": "四组", "mainTeams": 1, "siegeTeams": 0, "attackCount": 1, "weeklyMerit": 3200 }
+  ]
+}
